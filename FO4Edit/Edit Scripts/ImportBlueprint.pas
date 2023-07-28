@@ -120,7 +120,7 @@ begin
   
   // Otherwise create a new overrie in the file
   if not Assigned(Result) then
-    Result := wbCopyElementToFile(e, f, false, false);
+    Result := wbCopyElementToFile(e, f, false, true);
 end;
 
 function OnlyAlpha(data: string): string;
@@ -1143,11 +1143,11 @@ begin
     workshopRef := GetRef(pi, BP.O['workshop'].S['id']);
     
     if not Assigned(workshopRef) and not skipLinks then begin
-      Msg('Error', 'The workshop reference does not exist in the loaded settlement esp.');
+      Msg('Error', 'The workshop reference does not exist in the loaded settlement esp. Use "Skip Links" Option to ignore and import.');
       exit;
     end;
     
-    if Assigned(workshopRef) then begin
+    if Assigned(workshopRef) and HasKeyword(workshopRef, 'WorkshopKeyword [KYWD:00054BA7]') then begin
       // WorkshopRefDup stores the reference of the workshop, depending on the selected option.
       // Uses an override record or the original record.
       // Which will be used to store the Power Grid if powered workshop is selected.
@@ -1169,12 +1169,9 @@ begin
       Msg('Error', 'The workshop CELL does not exist in the loaded data.');
       exit;
     end;
-    
-    // Get the cell's persistent group
-    wscell := ElementByIndex(ChildGroup(wscell), 0);
-    
+        
     wscell := GetExistingOrNewOverride(wscell, ToFile);
-    
+        
     // Array of items in the blueprint.
     items := BP.A['items'];
     
@@ -1188,7 +1185,7 @@ begin
       ObjRefs.Add('');
       
       // Skip if plugin is not loaded
-      if not loaded_plugins.IndexOf(obj.S['plugin_name']) > -1 then continue;
+      if not (loaded_plugins.IndexOf(obj.S['plugin_name']) > -1) then continue;
       
       pi := GetPluginIndex(obj.S['plugin_name']);
       f := FileByIndex(pi);
@@ -1241,10 +1238,10 @@ begin
             
       if not Assigned(ref) then continue;
       
-      if (not PersistentRefs) and 
-         (not HasKeyword(ref, 'WorkshopPowerConnection [KYWD:00054BA4]')) and 
-         (not HasKeyword(ref, 'WorkshopCanBePowered [KYWD:0003037E]')) then begin
-        SetIsPersistent(ref, false);
+      if PersistentRefs or 
+         HasKeyword(ref, 'WorkshopPowerConnection [KYWD:00054BA4]') or 
+         HasKeyword(ref, 'WorkshopCanBePowered [KYWD:0003037E]') then begin
+        SetIsPersistent(ref, true);
       end;
       
       // Do not proceed if 'Not Powered' is selected.
