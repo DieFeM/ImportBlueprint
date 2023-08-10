@@ -880,7 +880,7 @@ procedure ConnectCables(items: TJsonArray; i: integer; ObjRefs: TStringList; wor
 var
   ConnectedObjects: TStringList;
   obj: TJsonObject;
-  ConnectedObjectIndex, j: integer;
+  j: integer;
   el, ref, refA, refB: IInterface;
 begin
   obj := items.O[i];
@@ -888,23 +888,19 @@ begin
   ConnectedObjects := TStringList.Create;
   SplitText(obj.S['ConnectedObjects'], ConnectedObjects);
   
-  refA := RecordByFormID(ToFile, StrToInt('$' + ObjRefs[i]), true);
+  refA := RecordByFormID(ToFile, StrToInt('$' + ObjRefs.Values[obj.S['idx']]), true);
   
   // Loop Connected Objects
   for j := 0 to Pred(ConnectedObjects.Count) do begin
-    ConnectedObjectIndex := StrToInt(ConnectedObjects[j]);
-    
-    // Skip if Connected Object has a lower Index than this object
-    if ConnectedObjectIndex < i then continue;
-    
-    // Skip if connected object is out of items bounds
-    if ConnectedObjectIndex >= items.Count then continue;
     
     // Skip if connected object doesn't have a reference
-    if not IsHexFormID(ObjRefs[ConnectedObjectIndex]) then continue;
-        
+    if not IsHexFormID(ObjRefs.Values[ConnectedObjects[j]]) then continue;
+    
+	// Skip if connected object has an idx less than ours
+	if obj.I['idx'] > StrToInt(ConnectedObjects[j]) then continue;
+    
     // Get Connected Object Ref
-    refB := RecordByFormID(ToFile, StrToInt('$' + ObjRefs[ConnectedObjectIndex]), true);
+    refB := RecordByFormID(ToFile, StrToInt('$' + ObjRefs.Values[ConnectedObjects[j]]), true);
     
     if WorkshopType = 0 then
       AddConnectionToQuest(Quest, 1, refA, refB)
@@ -1179,11 +1175,6 @@ begin
     for i := 0 to Pred(items.Count) do begin
       obj := items.O[i];
       
-      // ObjRefs will be used in the power loop (right after this one),
-      // It adds a blank index beforehand, so that the index of the object
-      // and the index of the reference stored in this list will match.
-      ObjRefs.Add('');
-      
       // Skip if plugin is not loaded
       if not (loaded_plugins.IndexOf(obj.S['plugin_name']) > -1) then continue;
       
@@ -1212,7 +1203,7 @@ begin
         SetElementEditValues(ref, 'XLYR', Name(Layr));
         
         // Stores the FormID of the created object reference.
-        ObjRefs.Insert(i, HexFormID(ref));
+        ObjRefs.Values[obj.S['idx']] := HexFormID(ref);
       except
         on E: Exception do
           AddMessage(E.Message);
@@ -1232,9 +1223,9 @@ begin
       if not loaded_plugins.IndexOf(obj.S['plugin_name']) > -1 then continue;
       
       // Skip if ObjRefs[i] is empty
-      if not IsHexFormID(ObjRefs[i]) then continue;
+      if not IsHexFormID(ObjRefs.Values[obj.S['idx']]) then continue;
       
-      ref := RecordByFormID(ToFile, StrToInt('$' + ObjRefs[i]), true);
+      ref := RecordByFormID(ToFile, StrToInt('$' + ObjRefs.Values[obj.S['idx']]), true);
             
       if not Assigned(ref) then continue;
       
