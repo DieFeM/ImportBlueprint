@@ -1,7 +1,7 @@
 {
-	Let you import a settlement to an esp from a Transfer Settlements blueprint.
-	------------------------
-	Hotkey: Ctrl+Alt+I
+    Let you import a settlement to an esp from a Transfer Settlements blueprint.
+    ------------------------
+    Hotkey: Ctrl+Alt+I
 }
 unit ImportBlueprint;
 
@@ -249,14 +249,20 @@ begin
   Result := pi;
 end;
 
-function GetRef(PluginIndex: integer; iFormID: integer): IInterface;
+function GetRef(PluginIndex: integer; sFormID: String): IInterface;
 var
   PrefixedFormID_Dec: integer;
-  PrefixedFormID_Hex: String;
+  FormID_Hex, PrefixedFormID_Hex: String;
   f: IwbFile;
 begin
   f := FileByIndex(PluginIndex);
-  PrefixedFormID_Hex := GetLoadOrderPrefix(f) + iFormID;
+  if GetElementNativeValues(ElementByIndex(f, 0), 'Record Header\Record Flags\ESL') = 0 then begin
+    FormID_Hex := RightStr(sFormID, 6);
+  end
+  else begin
+    FormID_Hex := RightStr(sFormID, 3);
+  end;
+  PrefixedFormID_Hex := GetLoadOrderPrefix(f) + FormID_Hex;
   PrefixedFormID_Dec := StrToInt('$' + PrefixedFormID_Hex);
   Result := RecordByFormID(f, PrefixedFormID_Dec, true);
 end;
@@ -290,7 +296,7 @@ begin
     el := Add(f, sign, true);
   
   if Assigned(el) then begin
-	el := Add(el, sign, true);
+    el := Add(el, sign, true);
     SetElementEditValues(el, 'EDID', edid);
   end;
   result := el;
@@ -631,7 +637,7 @@ begin
   if sign = 'NPC_' then
     if HasScript(baseObj, 'workshopnpcscript') then
       WorkshopAllowMove(baseObj, ref);
-	  
+  
   if IsPickableObject(baseObj) and (obj.I['RemoveHavok'] = 1) then
     RemoveHavok(ref);
   
@@ -715,7 +721,7 @@ end;
 
 function GetCounterGlobal(edid: string; f,q: IInterface): IInterface;
 var
-  QTGL, GLOB: IInterface;	
+  QTGL, GLOB: IInterface;
 begin
   GLOB := MainRecordByEditorID(GroupBySignature(f, 'GLOB'), edid);
   if not Assigned(GLOB) then GLOB := AddMainRecord(f, 'GLOB', edid);
@@ -734,7 +740,7 @@ end;
 function GetMSG(f: IwbFile; edid, desc: string; qnam: IInterface): IInterface;
 var
   MSG: IInterface;
-begin	
+begin
   MSG := MainRecordByEditorID(GroupBySignature(f, 'MESG'), edid);
   if not Assigned(MSG) then begin
     MSG := AddMainRecord(f, 'MESG', edid);
@@ -748,7 +754,7 @@ end;
 function GetAskMSG(f: IwbFile; edid, desc: string): IInterface;
 var
   MSG: IInterface;
-begin	
+begin
   MSG := MainRecordByEditorID(GroupBySignature(f, 'MESG'), edid);
   if not Assigned(MSG) then begin
     MSG := AddMainRecord(f, 'MESG', edid);
@@ -896,8 +902,8 @@ begin
     // Skip if connected object doesn't have a reference
     if not IsHexFormID(ObjRefs.Values[ConnectedObjects[j]]) then continue;
     
-	// Skip if connected object has an idx less than ours
-	if obj.I['idx'] > StrToInt(ConnectedObjects[j]) then continue;
+    // Skip if connected object has an idx less than ours
+    if obj.I['idx'] > StrToInt(ConnectedObjects[j]) then continue;
     
     // Get Connected Object Ref
     refB := RecordByFormID(ToFile, StrToInt('$' + ObjRefs.Values[ConnectedObjects[j]]), true);
@@ -1105,8 +1111,8 @@ procedure BeginImport(BpPath: string; ToFile: IwbFile; WorkshopType: integer; Do
 var
   BP, obj: TJsonObject;
   items: TJsonArray;
-  PrefixedFormID_Dec, i, pi: integer;
-  LayrEdid, PrefixedFormID_Hex: string;
+  i, pi: integer;
+  LayrEdid: string;
   Layr, Quest, workshopRef, workshopRefDup, wscell, ref, baseObj: IInterface;
   ObjRefs, loaded_plugins: TStringList;
   f: IwbFile;
@@ -1132,7 +1138,7 @@ begin
     LayrEdid := ExtractFileName(BpPath);
     LayrEdid := OnlyAlpha(LayrEdid);
     Layr := AddMainRecord(ToFile, 'LAYR', LayrEdid);
-		
+    
     for i := 0 to Pred(loaded_plugins.Count) do
       AddMasterIfMissing(ToFile, loaded_plugins[i]);
         
@@ -1151,15 +1157,25 @@ begin
       if DoScrapAll then ScrapAll(GetLoadOrderFormID(workshopRef), ToFile);
     end;
     
-    pi := GetPluginIndex(BP.O['header'].S['cell_plugin']);
+    if Length(BP.O['header'].S['cell_plugin']) > 0 then begin
+        pi := GetPluginIndex(BP.O['header'].S['cell_plugin']);
+    end
+    else begin
+        pi := GetPluginIndex(BP.O['header'].S['worldspace_plugin']);
+    end;
     
     if pi = -1 then begin
-      Msg('***FATAL ERROR***', 'Settlement mod (' + BP.O['header'].S['cell_plugin'] + ') not loaded, aborting.');
+      Msg('***FATAL ERROR***', 'Settlement plugin not loaded, aborting.');
       exit;
     end;
      
     // Get the cell in which the workshop is located
-    wscell := GetRef(pi, BP.O['header'].S['cell_id']);
+    if Length(BP.O['header'].S['cell_id']) > 0 then begin
+      wscell := GetRef(pi, BP.O['header'].S['cell_id']);
+    end
+    else begin
+      wscell := LinksTo(ElementByPath(workshopRef, 'Cell'));
+    end;
     
     if not Assigned(wscell) then begin
       Msg('Error', 'The workshop CELL does not exist in the loaded data.');
@@ -1178,15 +1194,12 @@ begin
       // Skip if plugin is not loaded
       if not (loaded_plugins.IndexOf(obj.S['plugin_name']) > -1) then continue;
       
-      pi := GetPluginIndex(obj.S['plugin_name']);
-      f := FileByIndex(pi);
-      PrefixedFormID_Hex := GetLoadOrderPrefix(f) + obj.S['FormID'];
-      PrefixedFormID_Dec := StrToInt('$' + PrefixedFormID_Hex);
       try
-        baseObj := RecordByFormID(f, PrefixedFormID_Dec, true);
+        pi := GetPluginIndex(obj.S['plugin_name']);
+        baseObj := GetRef(pi, obj.S['FormID']);
         
         if not Assigned(baseObj) then begin
-          AddMessage('***ERROR***: Missing object with FormID: ' + PrefixedFormID_Hex + ' (' + obj.S['name'] + ' [' + obj.S['plugin_name'] + '])');
+          AddMessage('***ERROR***: Missing object with FormID: ' + obj.S['FormID'] + ' (' + obj.S['name'] + ' [' + obj.S['plugin_name'] + '])');
           continue;
         end;
         
@@ -1194,7 +1207,7 @@ begin
         
         if SkipDups then begin
           if (Signature(baseObj) <> 'NPC_') and not IsPickableObject(baseObj) and not HasCOBJ(baseObj) and (IsUnscrappableObject(baseObj) or not HasScrapCOBJ(baseObj)) then begin
-            AddMessage('***Can not be stored in workshop nor scrapped***: Skipped object with FormID: ' + PrefixedFormID_Hex + ' (' + obj.S['name'] + ' [' + obj.S['plugin_name'] + '])');
+            AddMessage('***Can not be stored in workshop nor scrapped***: Skipped object with FormID: ' + obj.S['FormID'] + ' (' + obj.S['name'] + ' [' + obj.S['plugin_name'] + '])');
             continue;
           end;
         end;
@@ -1233,6 +1246,9 @@ begin
          HasKeyword(ref, 'WorkshopPowerConnection [KYWD:00054BA4]') or 
          HasKeyword(ref, 'WorkshopCanBePowered [KYWD:0003037E]') then begin
         SetIsPersistent(ref, true);
+      end
+      else begin
+        SetIsPersistent(ref, false);
       end;
       
       // Do not proceed if 'Not Powered' is selected.
