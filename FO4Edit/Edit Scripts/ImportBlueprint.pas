@@ -1036,7 +1036,7 @@ var
 begin
   List.Add('<New File>');
   for i := Pred(FileCount) downto 0 do
-    if SameText(ExtractFileExt(GetFileName(FileByIndex(i))), '.esp') then
+    if not SameText(ExtractFileExt(GetFileName(FileByIndex(i))), '.exe') then
       List.Add(GetFileName(FileByIndex(i)));
 end;
 
@@ -1312,13 +1312,14 @@ end;
 
 function Initialize: integer;
 var
-  frm: TForm;
+  frm, FilenameForm: TForm;
   WorkshopTypes, Esps, Blueprints: TStringList;
   formSelectWorkshopType, formSelectEsp, formSelectBlueprint: TComboBox;
-  formCheckPersistentRefs, formCheckSkipLinks, formCheckDoScrapAll, formCheckSkipDups: TCheckBox;
+  formCheckPersistentRefs, formCheckSkipLinks, formCheckDoScrapAll, formCheckSkipDups, formCheckESM: TCheckBox;
   SettingsFile, BpPath: string;
   ToFile: IwbFile;
   Settings : TJsonObject;
+  tInput: TLabeledEdit;
 begin
   TopHeight := -20;
   SettingsFile := ScriptsPath + 'ImportBlueprint.json';
@@ -1365,6 +1366,7 @@ begin
     Settings.B['SkipDups'] := true;
     Settings.B['SkipLinks'] := false;
     Settings.B['PersistentRefs'] := false;
+    Settings.B['ESM'] := true;
     
     if FileExists(SettingsFile) then Settings.LoadFromFile(SettingsFile);
     
@@ -1408,7 +1410,46 @@ begin
       end;
       
       if formSelectEsp.Text = '<New File>' then begin
-        ToFile := AddNewFile; //Shows a dialog to create a new esp.
+        FilenameForm := TForm.Create(nil);
+        FilenameForm.Caption := 'New file name';
+        FilenameForm.Width := 400;
+        FilenameForm.Position := poScreenCenter;
+        FilenameForm.Height := 180;
+        FilenameForm.BorderStyle := bsDialog;
+        FilenameForm.Position := poScreenCenter;
+        FilenameForm.ShowHint := true;
+        FilenameForm.Hint := 'Enter the name of the new file to create. It will be created in the Data folder.';
+
+        tInput := TLabeledEdit.Create(FilenameForm);
+        tInput.Parent := FilenameForm;
+        tInput.LabelPosition := lpAbove;
+        tInput.EditLabel.Caption := 'New file name';
+        tInput.Left := 16;
+        tInput.Top := 30;
+        tInput.Width := 350;
+        TopHeight := tInput.Top;
+
+        formCheckESM := TCheckBox.Create(FilenameForm);
+        CreateCheckBox(formCheckESM, FilenameForm, Settings.B['ESM'], 'ESM', 'Create an ESM.');
+
+        ConstructOkCancelButtons(FilenameForm, FilenameForm, TopHeight);
+
+        if FilenameForm.ShowModal = mrOk then begin
+          Settings.B['ESM'] := formCheckESM.Checked;
+          Settings.SaveToFile(SettingsFile);
+          if Settings.B['ESM'] then begin
+            tInput.Text := OnlyAlpha(tInput.Text) + '.esm';
+          end
+          else begin
+            tInput.Text := OnlyAlpha(tInput.Text) + '.esp';
+          end;
+          ToFile := AddNewFileName(tInput.Text);
+          SetIsESM(ToFile, Settings.B['ESM']);
+        end
+        else begin
+          AddMessage('Import canceled.');
+          exit;
+        end;
       end
       else begin
         if formSelectEsp.Text <> '' then begin
