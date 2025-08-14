@@ -1416,7 +1416,6 @@ begin
         FilenameForm.Position := poScreenCenter;
         FilenameForm.Height := 180;
         FilenameForm.BorderStyle := bsDialog;
-        FilenameForm.Position := poScreenCenter;
         FilenameForm.ShowHint := true;
         FilenameForm.Hint := 'Enter the name of the new file to create. It will be created in the Data folder.';
 
